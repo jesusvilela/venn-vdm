@@ -78,3 +78,18 @@ def test_root_and_byte_limits_and_unknown_event():
         history.get("0" * 64)
     with pytest.raises(ValueError):
         EventHistory(max_event_bytes=True)
+
+
+def test_stored_event_mutation_is_detected_on_every_read():
+    import json
+
+    history = EventHistory()
+    event_id = _put(history, payload={"outcome": 1.})
+    record = json.loads(history._events[event_id])
+    record["payload"]["outcome"] = 1000.
+    history._events[event_id] = json.dumps(record, sort_keys=True, ensure_ascii=False,
+                                           separators=(",", ":"), allow_nan=False).encode("utf-8")
+    with pytest.raises(ValueError, match="hash mismatch"):
+        history.get(event_id)
+    with pytest.raises(ValueError, match="hash mismatch"):
+        history.lineage(event_id)

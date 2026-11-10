@@ -75,7 +75,10 @@ class EventHistory:
         """Return a detached event record with its ID, rejecting unknown IDs."""
         if event_id not in self._events:
             raise ValueError("Unknown event ID")
-        return {"id": event_id, **json.loads(self._events[event_id])}
+        encoded = self._events[event_id]
+        if hashlib.sha256(encoded).hexdigest() != event_id:
+            raise ValueError("Stored event content hash mismatch")
+        return {"id": event_id, **json.loads(encoded)}
 
     def lineage(self, event_id):
         """Return root-to-head events; branches never import sibling events."""
