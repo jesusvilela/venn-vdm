@@ -54,6 +54,8 @@ def test_observation_flag_and_provenance_affect_identity():
     {"kind": ""},
     {"payload": {"x": float("nan")}},
     {"payload": {"x": object()}},
+    {"payload": {7: "coerced-key"}},
+    {"payload": {"x": (1, 2)}},
     {"provenance": {}},
     {"provenance": {"source": "test", "revision": ""}},
 ])

@@ -9,6 +9,22 @@ import hashlib
 import json
 
 
+def _validate_json(value):
+    """Reject lossy Python-to-JSON coercions before assigning a content hash."""
+    if isinstance(value, dict):
+        if any(type(key) is not str for key in value):
+            raise ValueError("History JSON object keys must be strings")
+        for item in value.values():
+            _validate_json(item)
+    elif isinstance(value, list):
+        for item in value:
+            _validate_json(item)
+    elif value is None or type(value) in (str, bool, int, float):
+        return
+    else:
+        raise ValueError("History requires native JSON values, not Python-specific containers")
+
+
 class EventHistory:
     """In-memory immutable-event DAG with single-parent branching.
 
@@ -42,9 +58,10 @@ class EventHistory:
         record = {"parent": parent, "branch": branch, "kind": kind,
                   "payload": payload, "provenance": provenance, "observed": observed}
         try:
+            _validate_json(record)
             encoded = json.dumps(record, sort_keys=True, ensure_ascii=False,
                                  separators=(",", ":"), allow_nan=False).encode("utf-8")
-        except (TypeError, ValueError) as error:
+        except (TypeError, ValueError, RecursionError) as error:
             raise ValueError("History events require finite JSON data") from error
         if len(encoded) > self.max_event_bytes:
             raise ValueError("History event exceeds the configured byte limit")
