@@ -13,7 +13,7 @@ def test_hand_computed_deterministic_target_policy():
     assert out["n"] == 4
     assert out["ips"] == 1.
     assert out["snips"] == 1.
-    assert out["effective_sample_size"] == 2.
+    assert out["effective_sample_size"] == pytest.approx(2.)
     assert out["nonzero_weight_rows"] == 2
     assert out["max_weight"] == 2.
     assert out["observed_reward_mean"] == .5
@@ -73,3 +73,11 @@ def test_randomized_same_policy_identity():
         report = estimate_logged_policy(rewards, p, p)
         assert report["snips"] == pytest.approx(rewards.mean(), rel=1e-12, abs=1e-12)
         assert report["ips"] == pytest.approx(rewards.mean(), rel=1e-12, abs=1e-12)
+
+
+def test_ess_remains_finite_when_summed_weights_square_would_overflow():
+    # 1000 weights of 1e152: total**2 overflows, sum(weights**2) does not.
+    # A stable implementation must still report ESS ~= 1000.
+    r = estimate_logged_policy(np.ones(1000), np.full(1000, 1e-152), np.ones(1000))
+    assert r["effective_sample_size"] == pytest.approx(1000., rel=1e-12)
+    assert r["snips"] == pytest.approx(1.)

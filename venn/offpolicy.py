@@ -49,7 +49,7 @@ def estimate_logged_policy(rewards, logging_probability, target_probability):
         "n": len(observed),
         "ips": float(weighted_reward / len(observed)),
         "snips": float(weighted_reward / total),
-        "effective_sample_size": float(total * total / squares),
+        "effective_sample_size": float((total / np.sqrt(squares)) ** 2),
         "nonzero_weight_rows": int(np.count_nonzero(weights)),
         "max_weight": float(weights.max()),
         "min_logging_probability": float(logging.min()),
