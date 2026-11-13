@@ -1,9 +1,18 @@
 """Prepare a Choice question once and score many state vectors against it."""
 
+import math
+from numbers import Real
+
 import torch
 from torch.nn import functional as F
 
 from venn.index.prewarm import prewarm
+
+
+def _temperature(value):
+    if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value) or value <= 0:
+        raise ValueError("Calibration temperature must be finite and positive")
+    return float(value)
 
 
 class PreparedQuestion:
@@ -13,6 +22,7 @@ class PreparedQuestion:
     (2-D) are tensors on the same device. ``temperature`` is the default softmax temperature for ``stream``.
     """
     def __init__(self, model, question, options, temperature=1.0):
+        temperature = _temperature(temperature)
         mask = torch.ones(1, len(options), dtype=torch.bool, device=options.device)
         q, o, _ = prewarm(question[None], options[None], mask)
         self.options = o[0]
@@ -47,7 +57,7 @@ class PreparedQuestion:
         Rows are unit-normalized and softmaxed at ``temperature`` (default: the calibration temperature).
         """
         device = self.options.device
-        temperature = self.calibration_temperature if temperature is None else temperature
+        temperature = _temperature(self.calibration_temperature if temperature is None else temperature)
         for offset in range(0, len(vectors), batch_size):
             states = torch.as_tensor(vectors[offset:offset + batch_size]).to(device).float()
             states = F.normalize(states, dim=-1)
@@ -88,7 +98,7 @@ class PreparedQuestionBatch:
         self.model = model
         self.width = width
         self.lengths = tuple(len(q.options) for q in questions)
-        self.calibration_temperatures = tuple(q.calibration_temperature for q in questions)
+        self.calibration_temperatures = tuple(_temperature(q.calibration_temperature) for q in questions)
         self.max_workspace_bytes = max_workspace_bytes
         self.state_weight = first.state_weight
         self.context_weight = first.context_weight
@@ -172,7 +182,7 @@ class PreparedQuestionBatch:
             raise ValueError("batch_size must be a positive integer")
         device = self._device
         cap = min(batch_size, self._row_cap)
-        temperatures = self.calibration_temperatures if temperature is None else (temperature,) * len(self.lengths)
+        temperatures = self.calibration_temperatures if temperature is None else (_temperature(temperature),) * len(self.lengths)
         for offset in range(0, len(vectors), cap):
             states = torch.as_tensor(vectors[offset:offset + cap]).to(device=device, dtype=self._dtype)
             states = F.normalize(states, dim=-1)

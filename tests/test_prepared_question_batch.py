@@ -107,6 +107,22 @@ def test_stream_rejects_nonpositive_batch_size():
     with pytest.raises(ValueError, match="batch_size"):
         list(PreparedQuestionBatch(questions).stream(states.numpy(), batch_size=0))
 
+
+@pytest.mark.parametrize("temperature", [0, -1, float("nan"), float("inf"), -float("inf"), True, "1"])
+def test_invalid_calibration_temperatures_fail_before_scoring(temperature):
+    head = CosineAbstention(0.9, 0.1, dimensions=12)
+    questions, states = _fixture(head, count=1)
+    with pytest.raises(ValueError, match="temperature"):
+        PreparedQuestion(head, torch.ones(12), torch.eye(12)[:2], temperature=temperature)
+    with pytest.raises(ValueError, match="temperature"):
+        list(questions[0].stream(states.numpy(), temperature=temperature))
+    with pytest.raises(ValueError, match="temperature"):
+        list(PreparedQuestionBatch(questions).stream(states.numpy(), temperature=temperature))
+    questions[0].calibration_temperature = temperature
+    with pytest.raises(ValueError, match="temperature"):
+        PreparedQuestionBatch(questions)
+
+
 @pytest.mark.parametrize("context", [False, True])
 def test_frozen_head_forward_is_an_independent_parity_control(context):
     """Compare with the original batched forward, not only PreparedQuestion."""
