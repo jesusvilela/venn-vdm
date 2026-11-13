@@ -35,23 +35,28 @@ def estimate_logged_policy(rewards, logging_probability, target_probability):
         raise ValueError("Inputs must have one record per logged action")
     if not (np.all((logging > 0) & (logging <= 1)) and np.all((target >= 0) & (target <= 1))):
         raise ValueError("Action propensities must be valid probabilities; logged ones must be positive")
-    weights = target / logging
-    total = weights.sum()
-    squares = np.dot(weights, weights)
-    if not np.isfinite(weights).all() or not np.isfinite(total) or not np.isfinite(squares):
+    with np.errstate(over="ignore"):
+        weights = target / logging
+    if not np.isfinite(weights).all():
         raise ValueError("Nonfinite importance weights; logging support is too small")
-    if total <= 0 or squares <= 0:
+    maximum = weights.max()
+    if maximum <= 0:
         raise ValueError("No logged actions have target support; estimate is undefined")
-    weighted_reward = np.dot(weights, observed)
-    if not np.isfinite(weighted_reward):
+    scaled = weights / maximum
+    total = scaled.sum()
+    squares = np.dot(scaled, scaled)
+    with np.errstate(over="ignore", invalid="ignore"):
+        ips = np.dot(scaled / len(observed), observed) * maximum
+        snips = np.dot(scaled / total, observed)
+    if not np.isfinite(ips) or not np.isfinite(snips):
         raise ValueError("Importance-weighted rewards overflowed")
     return {
         "n": len(observed),
-        "ips": float(weighted_reward / len(observed)),
-        "snips": float(weighted_reward / total),
+        "ips": float(ips),
+        "snips": float(snips),
         "effective_sample_size": float((total / np.sqrt(squares)) ** 2),
         "nonzero_weight_rows": int(np.count_nonzero(weights)),
-        "max_weight": float(weights.max()),
+        "max_weight": float(maximum),
         "min_logging_probability": float(logging.min()),
-        "observed_reward_mean": float(observed.mean()),
+        "observed_reward_mean": float(np.dot(np.full(len(observed), 1 / len(observed)), observed)),
     }

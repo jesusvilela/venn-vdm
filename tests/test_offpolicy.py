@@ -81,3 +81,21 @@ def test_ess_remains_finite_when_summed_weights_square_would_overflow():
     r = estimate_logged_policy(np.ones(1000), np.full(1000, 1e-152), np.ones(1000))
     assert r["effective_sample_size"] == pytest.approx(1000., rel=1e-12)
     assert r["snips"] == pytest.approx(1.)
+
+
+@pytest.mark.parametrize("target,logging,expected_ips", [
+    (1e-200, .5, 4e-200),
+    (1., 1e-200, 2e200),
+])
+def test_normalized_estimators_survive_weight_square_underflow_and_overflow(target, logging, expected_ips):
+    report = estimate_logged_policy([1., 2., 3.], [logging] * 3, [target] * 3)
+    assert report["effective_sample_size"] == pytest.approx(3.)
+    assert report["snips"] == pytest.approx(2.)
+    assert report["ips"] == pytest.approx(expected_ips, rel=1e-12, abs=0)
+
+
+def test_finite_ips_is_not_rejected_when_unnormalized_weighted_sum_overflows():
+    report = estimate_logged_policy([1.] * 1000, [1e-306] * 1000, [1.] * 1000)
+    assert report["ips"] == pytest.approx(1e306)
+    assert report["snips"] == pytest.approx(1.)
+    assert report["effective_sample_size"] == pytest.approx(1000.)
